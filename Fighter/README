@@ -1,0 +1,17 @@
+An initial nmap scan revealed a website running on port 80
+
+Reviewing this website hinted at a subdomain, found members subdomain by trial and error.
+
+Used gobuster on subdomain to find login page.
+
+Explored login requests in burp suite. Found that the logintype parameter is injectable, and if remember me is on, information can be leaked in base64
+
+Wrote exploit to gain a limited shell using SQL injection.
+
+Discovered all commands are capitalized, and applocker is prevening .exe from running.
+
+Uploaded executables using certutil, giving them alternate extensions, and ran these to get a full shell.
+
+Migrated to 64bit process, and used capcom exploit to elevate privleges
+
+Reversed root.exe (Revisit this with better description later)
