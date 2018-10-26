@@ -1,0 +1,36 @@
+I am a huge fan of Canape - it has one of my favorite initial footholds. Getting user on this box required some learning about the functionality of git, as well as how pickle deserialization works. It also gave me a great reason to practice my Python scripting.
+Enumeration
+
+Let’s begin enumeration with a nmap scan of common ports. This scan quickly revealed a website, and not much else running on the box.
+
+My initial nmap identified a git repository on the web server, which we will take a look at a little later. Generally, we would start up Nikto and Gobuster to do some automated reconnaissance in the background while take a manual look at the web server. Unfortunately, it looks like this server has been configured to prevent easily using these tools. Rather than the typical 404 page, we are greeted with either randomly generated strings or the index page for each request. A little confused, it is time to manually check out that web server.
+
+After taking an initial look, it appears that the web server contains a Simpsons Quote web site and a git repository. The website itself is basic – Just a page with Simpsons Quotes and a form to submit new quotes. However, when we take a closer look at the html, it appears there is a comment mentioning a /check function. We’ll take a closer look at that later, but first let’s look at what is in that git folder.
+
+Poking around this folder, it looks like a git repository. We can use git clone to rebuild the repository and view the files being tracked within. It looks like this is the code for the website
+
+It looks like they’re taking the submitted quotes, making sure they have a valid name, concatenating the character and quote, and writing that to a filename based on their md5 hash. Additionally, we see a reference to pickle being used in the check function. Maybe we can take advantage of that.
+
+It looks like the /check function retrieves a file using the id parameter. If the file contains p1, it uses cPickle.loads on the data, otherwise it returns the data as is. Let’s see if we can submit something, then retrieve it. Let’s write some python to send a post request to submit, then use the hash the character and quote from that request to send a request to check.
+
+Initial research looking into cPickle.loads show the possibility of code execution, let’s see if we can take advantage of this.
+After spending some time researching cPickle.loads and serialization vulnerabilities, we can use the information found this blog post to help build our payload. After incorporating the information we find, our final exploit looks like this:
+
+This exploit lands us a shell as www-data. A few things are hinting at us to take a look at the CouchDB - the name of the box roughly translates to Couch, as well it being used within the website to retrieve quotes. Let’s take a look to see if we can find any other useful information there. An initial poke at the database shows the version as 2.0, but further enumeration is blocked by a lack of credentials
+
+A quick use of searchsploit for CouchDB shows a few options for privilege escalation for this version of CouchDB. The first exploit listed successfully creates an administrative user in CouchDB.
+
+It looks like we have administrative access to CouchDB now. After some poking around, we find a password database. Dumping the files from this database returns plaintext credentials! One of the credentials looks like a SSH password.
+
+It’s a reasonable assumption that these are Homer’s passwords. Because of our limited shell, we need to upgrade our shell in order to use su to switch users. We can use python to get a tty shell using:
+
+python -c 'import pty; pty.spawn("/bin/sh")'
+
+After getting a proper tty, we are able to use su, and discover these credentials do indeed grant us access to Homer.
+Now that we’ve got access as Homer, I take a quick look in his home directory. It looks like he’s recently used sudo, so let’s check out his sudo permissions. Right away we see that he can run pip install with a wildcard as root.
+
+So, to exploit this we’ll create a malicious setup.py for pip to install. For this walkthrough, I used the setup.py created by Andre Marques found here. After transferring this file to the machine, we should be able to use this setup.py file by running the following command:
+
+sudo pip install .
+
+I really enjoyed this box, especially putting together a python script to automate the two web requests for the initial foothold.
